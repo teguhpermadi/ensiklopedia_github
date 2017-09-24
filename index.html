@@ -10,7 +10,7 @@
 <script type="text/javascript" src="lib/hash.js"></script>
 <script type="text/javascript" src="js/admob.js"></script>
 
-<body>
+<body onload="app.showBannerAds()">
 
 <div class="w3-sidebar w3-bar-block w3-card-2 w3-animate-left" style="display:none" id="mySidebar">
   <button class="w3-bar-item w3-button w3-large"
@@ -475,6 +475,11 @@ yepnope({
 	complete: loadApp
 });
 
+</script>
+
+<script type="text/javascript" src="cordova.js"></script>
+<script type="text/javascript">
+app.initialize();
 </script>
 </body>
 </html>

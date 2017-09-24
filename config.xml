@@ -4,7 +4,7 @@
 <widget xmlns     = "http://www.w3.org/ns/widgets"
         xmlns:gap = "http://phonegap.com/ns/1.0"
         id        = "com.teguh.permadi"
-        version   = "1.0">
+        version   = "1.1">
 
     <name>Ensiklopedia Matematika</name>
 
@@ -63,7 +63,7 @@
     <plugin name="cordova-plugin-network-information" />
     <plugin name="cordova-plugin-splashscreen" />
     <plugin name="cordova-plugin-vibration" />
-    <gap:plugin name="phonegap-admob" source="npm"/>
+    <gap:plugin name="phonegap-admob" source="npm" />
 
     <!-- Third party plugins -->
     <!-- A list of available plugins are available at https://build.phonegap.com/plugins -->
