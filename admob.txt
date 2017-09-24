@@ -1,2 +1,17 @@
+=== ANDROID ===
+banner
 ID Aplikasi: ca-app-pub-1984195247855929~1387388198
 ID unit iklan: ca-app-pub-1984195247855929/3307152130
+
+interstitial
+ID Aplikasi: ca-app-pub-1984195247855929~1387388198
+ID unit iklan: ca-app-pub-1984195247855929/2319651323
+
+=== IOS ===
+banner
+ID Aplikasi: ca-app-pub-1984195247855929~6341343739
+ID unit iklan: ca-app-pub-1984195247855929/8201220310
+
+interstitial
+ID Aplikasi: ca-app-pub-1984195247855929~6341343739
+ID unit iklan: ca-app-pub-1984195247855929/5000341901
