@@ -1,6 +1,6 @@
 /*
- admob.js
- Copyright 2014 AppFeel. All rights reserved.
+ index.js
+ Copyright 2015 AppFeel. All rights reserved.
  http://www.appfeel.com
  
  AdMobAds Cordova Plugin (cordova-admob)
@@ -23,196 +23,207 @@
  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  SOFTWARE.
  */
-var admob = window.admob || {};
 
-/**
- * This enum represents appfeel-cordova-admob plugin events
- */
-admob.events = {
-  onAdLoaded: "appfeel.cordova.admob.onAdLoaded",
-  onAdFailedToLoad: "appfeel.cordova.admob.onAdFailedToLoad",
-  onAdOpened: "appfeel.cordova.admob.onAdOpened",
-  onAdLeftApplication: "appfeel.cordova.admob.onAdLeftApplication",
-  onAdClosed: "appfeel.cordova.admob.onAdClosed",
-  onInAppPurchaseRequested: "appfeel.cordova.admob.onInAppPurchaseRequested",
-};
+var app = {
+    // global vars
+    autoShowInterstitial: false,
+    progressDialog: document.getElementById("progressDialog"),
+    spinner: document.getElementById("spinner"),
+    weinre: {
+        enabled: false,
+        ip: '', // ex. http://192.168.1.13
+        port: '', // ex. 9090
+        targetApp: '' // ex. see weinre docs
+    },
 
-/**
- * This enum represents AdMob's supported ad sizes.  Use one of these
- * constants as the adSize when calling createBannerView.
- * @const
- */
-admob.AD_SIZE = {
-  BANNER: 'BANNER',
-  IAB_MRECT: 'IAB_MRECT',
-  IAB_BANNER: 'IAB_BANNER',
-  IAB_LEADERBOARD: 'IAB_LEADERBOARD',
-  SMART_BANNER: 'SMART_BANNER'
-};
+    // Application Constructor
+    initialize: function () {
+        if ((/(ipad|iphone|ipod|android)/i.test(navigator.userAgent))) {
+            document.addEventListener('deviceready', this.onDeviceReady, false);
+        } else {
+            app.onDeviceReady();
+        }
+    },
+    // Must be called when deviceready is fired so AdMobAds plugin will be ready
+    initAds: function () {
+        var isAndroid = (/(android)/i.test(navigator.userAgent));
+        var adPublisherIds = {
+            ios: {
+                banner: 'ca-app-pub-9863325511078756/5232547029',
+                interstitial: 'ca-app-pub-9863325511078756/6709280228'
+            },
+            android: {
+                banner: 'ca-app-pub-9863325511078756/9802347428',
+                interstitial: 'ca-app-pub-9863325511078756/2279080628'
+            }
+        };
+        var admobid;
 
-admob.AD_TYPE = {
-  BANNER: 'banner',
-  INTERSTITIAL: 'interstitial'
-};
+        if (isAndroid) {
+            admobid = adPublisherIds.android;
+        } else {
+            admobid = adPublisherIds.ios;
+        }
+        if (window.admob) {
+            admob.setOptions({
+                publisherId: admobid.banner,
+                interstitialAdId: admobid.interstitial,
+                bannerAtTop: true, // set to true, to put banner at top
+                overlap: false, // set to true, to allow banner overlap webview
+                offsetStatusBar: true, // set to true to avoid ios7 status bar overlap
+                isTesting: true, // receiving test ads (do not test with real ads as your account will be banned)
+                autoShowBanner: true, // auto show banners ad when loaded
+                autoShowInterstitial: false // auto show interstitials ad when loaded
+            });
+        } else {
+            alert('cordova-admob plugin not ready.\nAre you in a desktop browser? It won\'t work...');
+        }
+    },
+    // Bind Event Listeners
+    bindAdEvents: function () {
+        if (window.admob) {
+            document.addEventListener("orientationchange", this.onOrientationChange, false);
+            document.addEventListener(admob.events.onAdLoaded, this.onAdLoaded, false);
+            document.addEventListener(admob.events.onAdFailedToLoad, this.onAdFailedToLoad, false);
+            document.addEventListener(admob.events.onAdOpened, function (e) { }, false);
+            document.addEventListener(admob.events.onAdClosed, function (e) { }, false);
+            document.addEventListener(admob.events.onAdLeftApplication, function (e) { }, false);
+            document.addEventListener(admob.events.onInAppPurchaseRequested, function (e) { }, false);
+        } else {
+            alert('cordova-admob plugin not ready.\nAre you in a desktop browser? It won\'t work...');
+        }
+    },
 
-admob.PURCHASE_RESOLUTION = {
-  RESOLUTION_CANCELED: 2,
-  RESOLUTION_FAILURE: 0,
-  RESOLUTION_INVALID_PRODUCT: 3,
-  RESOLUTION_SUCCESS: 1
-};
+    // -----------------------------------
+    // Events.
+    // The scope of 'this' is the event.
+    // -----------------------------------
+    onOrientationChange: function () {
+        app.onResize();
+    },
+    onDeviceReady: function () {
+        var weinre,
+            weinreUrl;
 
-// This is not used by the plugin, it is just a helper to show how options are specified and their default values
-admob.options = {
-  publisherId: (/(android)/i.test(navigator.userAgent)) ? "ca-app-pub-8440343014846849/3119840614" : "ca-app-pub-8440343014846849/2335511010",
-  interstitialId: (/(android)/i.test(navigator.userAgent)) ? "ca-app-pub-8440343014846849/4596573817" : "ca-app-pub-8440343014846849/3812244218",
-  adSize: admob.AD_SIZE.SMART_BANNER,
-  bannerAtTop: false,
-  overlap: false,
-  offsetStatusBar: false,
-  isTesting: false,
-  adExtras: {},
-  autoShowBanner: true,
-  autoShowInterstitial: true
-};
+        document.removeEventListener('deviceready', app.onDeviceReady, false);
 
-/**
- * Initialize appfeel-cordova-admob plugin with options:
- * @param {!Object}    options         AdMob options (use admob.options as template)
- * @param {function()} successCallback Callback on success
- * @param {function()} failureCallback Callback on fail
- */
-admob.setOptions = function (options, successCallback, failureCallback) {
-  if (typeof options === 'function') {
-    failureCallback = successCallback;
-    successCallback = options;
-    options = undefined;
-  }
+        if (app.weinre.enabled) {
+            console.log('Loading weinre...');
+            weinre = document.createElement('script');
+            weinreUrl = app.weinre.ip + ":" + app.weinre.port;
+            weinreUrl += '/target/target-script-min.js';
+            weinreUrl += '#' + app.weinre.targetApp;
+            weinre.setAttribute('src', weinreUrl);
+            document.head.appendChild(weinre);
+        }
 
-  options = options || admob.DEFAULT_OPTIONS;
+        if (window.admob) {
+            console.log('Binding ad events...');
+            app.bindAdEvents();
+            console.log('Initializing ads...');
+            app.initAds();
+        } else {
+            alert('cordova-admob plugin not ready.\nAre you in a desktop browser? It won\'t work...');
+        }
+    },
+    onAdLoaded: function (e) {
+        app.showProgress(false);
+        if (window.admob && e.adType === window.admob.AD_TYPE.INTERSTITIAL) {
+            if (app.autoShowInterstitial) {
+                window.admob.showInterstitialAd();
+            } else {
+                alert("Interstitial is available. Click on 'Show Interstitial' to show it.");
+            }
+        }
+    },
+    onAdFailedToLoad: function (e) {
+        app.showProgress(false);
+        alert("Could not load ad: " + JSON.stringify(e));
+    },
+    onResize: function () {
+        var msg = 'Web view size: ' + window.innerWidth + ' x ' + window.innerHeight;
+        document.getElementById('sizeinfo').innerHTML = msg;
+    },
 
-  if (typeof options === 'object' && typeof options.publisherId === 'string' && options.publisherId.length > 0) {
-    cordova.exec(successCallback, failureCallback, 'AdMobAds', 'setOptions', [options]);
-
-  } else {
-    if (typeof failureCallback === 'function') {
-      failureCallback('options.publisherId should be specified.');
+    // -----------------------------------
+    // App buttons functionality
+    // -----------------------------------
+    startBannerAds: function () {
+        if (window.admob) {
+            app.showProgress(true);
+            window.admob.createBannerView(function () { }, function (e) {
+                alert(JSON.stringify(e));
+            });
+        } else {
+            alert('cordova-admob plugin not ready.\nAre you in a desktop browser? It won\'t work...');
+        }
+    },
+    removeBannerAds: function () {
+        if (window.admob) {
+            app.showProgress(false);
+            window.admob.destroyBannerView();
+        } else {
+            alert('cordova-admob plugin not ready.\nAre you in a desktop browser? It won\'t work...');
+        }
+    },
+    showBannerAds: function () {
+        if (window.admob) {
+            app.showProgress(false);
+            window.admob.showBannerAd(true, function () { }, function (e) {
+                alert(JSON.stringify(e));
+            });
+        } else {
+            alert('cordova-admob plugin not ready.\nAre you in a desktop browser? It won\'t work...');
+        }
+    },
+    hideBannerAds: function () {
+        if (window.admob) {
+            app.showProgress(false);
+            window.admob.showBannerAd(false);
+        } else {
+            alert('cordova-admob plugin not ready.\nAre you in a desktop browser? It won\'t work...');
+        }
+    },
+    requestInterstitial: function (autoshow) {
+        if (window.admob) {
+            app.showProgress(true);
+            app.autoShowInterstitial = autoshow;
+            window.admob.requestInterstitialAd(function () { }, function (e) {
+                alert(JSON.stringify(e));
+            });
+        } else {
+            alert('cordova-admob plugin not ready.\nAre you in a desktop browser? It won\'t work...');
+        }
+    },
+    showInterstitial: function () {
+        if (window.admob) {
+            app.showProgress(false);
+            window.admob.showInterstitialAd(function () { }, function (e) {
+                alert(JSON.stringify(e));
+            });
+        } else {
+            alert('cordova-admob plugin not ready.\nAre you in a desktop browser? It won\'t work...');
+        }
+    },
+    showProgress: function (show) {
+        if (show) {
+            addClass(app.spinner, "animated");
+            removeClass(app.progressDialog, "hidden");
+        } else {
+            addClass(app.progressDialog, "hidden");
+            removeClass(app.spinner, "animated");
+        }
     }
-  }
 };
 
-/**
- * Creates a new AdMob banner view.
- *
- * @param {!Object}    options         The options used to create a banner. (use admob.options as template)
- * @param {function()} successCallback The function to call if the banner was created successfully.
- * @param {function()} failureCallback The function to call if create banner  was unsuccessful.
- */
-admob.createBannerView = function (options, successCallback, failureCallback) {
-  if (typeof options === 'function') {
-    failureCallback = successCallback;
-    successCallback = options;
-    options = undefined;
-  }
-  options = options || {};
-  cordova.exec(successCallback, failureCallback, 'AdMobAds', 'createBannerView', [options]);
-};
-
-/*
- * Show or hide Ad.
- *
- * @param {boolean} show true to show, false to hide.
- * @param {function()} successCallback The function to call if the ad was shown successfully.
- * @param {function()} failureCallback The function to call if the ad failed to be shown.
- */
-admob.showBannerAd = function (show, successCallback, failureCallback) {
-  if (show === undefined) {
-    show = true;
-
-  } else if (typeof show === 'function') {
-    failureCallback = successCallback;
-    successCallback = show;
-    show = true;
-  }
-  cordova.exec(successCallback, failureCallback, 'AdMobAds', 'showBannerAd', [show]);
-};
-
-/**
- * Hides and destroys the banner view. CreateBanner should be called if new ads were to be shown.
- * @param {function()} successCallback The function to call if the view was destroyed successfully.
- * @param {function()} failureCallback The function to call if failed to destroy view.
- */
-admob.destroyBannerView = function (successCallback, failureCallback) {
-  cordova.exec(successCallback, failureCallback, 'AdMobAds', 'destroyBannerView', []);
-};
-
-/**
- * Request an AdMob interstitial ad.
- *
- * @param {!Object}    options         The options used to request an ad. (use admob.options as template)
- * @param {function()} successCallback The function to call if an ad was requested successfully.
- * @param {function()} failureCallback The function to call if an ad failed to be requested.
- */
-admob.requestInterstitialAd = function (options, successCallback, failureCallback) {
-  if (typeof options === 'function') {
-    failureCallback = successCallback;
-    successCallback = options;
-    options = undefined;
-  }
-  options = options || {};
-  cordova.exec(successCallback, failureCallback, 'AdMobAds', 'requestInterstitialAd', [options]);
-};
-
-/**
- * Shows an interstitial ad. This function should be called when onAdLoaded occurred.
- *
- * @param {function()} successCallback The function to call if the ad was shown successfully.
- * @param {function()} failureCallback The function to call if the ad failed to be shown.
- */
-admob.showInterstitialAd = function (successCallback, failureCallback) {
-  cordova.exec(successCallback, failureCallback, 'AdMobAds', 'showInterstitialAd', []);
-};
-
-/**
- * Records a resolution after an inAppPurchase.
- *
- * @param {Integer}    purchaseId      The id of the purchase.
- * @param {Integer}    resolution      The resolution code.
- * @param {function()} successCallback The function to call if the ad was shown successfully.
- * @param {function()} successCallback The function to call if the ad was shown successfully.
- * @param {function()} failureCallback The function to call if the ad failed to be shown.
- */
-admob.recordResolution = function (purchaseId, resolution, successCallback, failureCallback) {
-  if (purchaseId === undefined || resolution === undefined) {
-    if (typeof failureCallback === 'function') {
-      failureCallback('purchaseId and resolution should be specified.');
-    }
-  }
-  cordova.exec(successCallback, failureCallback, 'AdMobAds', 'recordResolution', [purchaseId, resolution]);
-};
-
-/**
- * Records a resolution after an inAppPurchase.
- *
- * @param {Integer}    purchaseId           The id of the purchase.
- * @param {Integer}    billingResponseCode  The resolution code.
- * @param {function()} successCallback      The function to call if the ad was shown successfully.
- * @param {function()} successCallback      The function to call if the ad was shown successfully.
- * @param {function()} failureCallback      The function to call if the ad failed to be shown.
- */
-admob.recordPlayBillingResolution = function (purchaseId, billingResponseCode, successCallback, failureCallback) {
-  if (purchaseId === undefined || billingResponseCode === undefined) {
-    if (typeof failureCallback === 'function') {
-      failureCallback('purchaseId and billingResponseCode should be specified.');
-    }
-  }
-  cordova.exec(successCallback, failureCallback, 'AdMobAds', 'recordResolution', [purchaseId, billingResponseCode]);
-};
-
-if (typeof module !== 'undefined') {
-  // Export admob
-  module.exports = admob;
+function removeClass(elem, cls) {
+    var str;
+    do {
+        str = " " + elem.className + " ";
+        elem.className = str.replace(" " + cls + " ", " ").replace(/^\s+|\s+$/g, "");
+    } while (str.match(cls));
 }
 
-window.admob = admob;
-window.tappx = admob;
+function addClass(elem, cls) {
+    elem.className += (" " + cls);
+}
