@@ -25,10 +25,10 @@
  */
 
 var app = {
-    // global vars
+    global vars
     autoShowInterstitial: false,
-    //progressDialog: document.getElementById("progressDialog"),
-    //spinner: document.getElementById("spinner"),
+    progressDialog: document.getElementById("progressDialog"),
+    spinner: document.getElementById("spinner"),
     weinre: {
         enabled: false,
         ip: '', // ex. http://192.168.1.13
